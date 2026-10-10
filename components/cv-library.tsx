@@ -1,0 +1,21 @@
+'use client';
+import {useState} from 'react';
+import {FileText,X,Pencil,Trash2} from 'lucide-react';
+import {Dialog,DialogContent,DialogTitle,DialogDescription,DialogClose} from '@/components/ui/dialog';
+import {AlertDialog,AlertDialogContent,AlertDialogHeader,AlertDialogTitle,AlertDialogDescription,AlertDialogFooter,AlertDialogCancel,AlertDialogAction} from '@/components/ui/alert-dialog';
+import {cvLabel,type SavedCv} from '@/lib/resume-collection';
+import {studioCopy} from '@/lib/studio-copy';
+import {copy} from '@/lib/copy';
+import type {Locale} from '@/lib/resume';
+export default function CvLibrary({open,onOpenChange,ui,items,activeId,onSelect,onRename,onDelete}:{open:boolean;onOpenChange:(v:boolean)=>void;ui:Locale;items:SavedCv[];activeId:string;onSelect:(id:string)=>void;onRename:(id:string,name:string)=>void;onDelete:(id:string)=>void}){
+ const t=studioCopy[ui];const [rename,setRename]=useState<string|null>(null),[name,setName]=useState(''),[deleting,setDeleting]=useState<string|null>(null),[invalid,setInvalid]=useState(false);
+ function startRename(cv:SavedCv,i:number){setName(cvLabel(cv,ui,i).slice(0,200));setInvalid(false);setRename(cv.id);}
+ function submitRename(e:React.FormEvent){e.preventDefault();if(!name.trim()||name.trim().length>200){setInvalid(true);return;}onRename(rename!,name);setRename(null);}
+ const deletingCv=items.find(cv=>cv.id===deleting);
+ return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="cv-library-dialog" showCloseButton={false}>
+  <div className="library-header"><div><DialogTitle>{t.myCvs}</DialogTitle><DialogDescription>{t.myCvsDescription}</DialogDescription></div><DialogClose asChild><button className="icon-button" aria-label={t.close}><X size={20}/></button></DialogClose></div>
+  <div className="saved-cv-list">{items.map((cv,i)=><article key={cv.id} className={`saved-cv ${cv.id===activeId?'is-active':''}`}><div className="saved-cv-info"><FileText size={20}/><div><h3>{cvLabel(cv,ui,i)}</h3><p>{t.updated} {new Intl.DateTimeFormat(ui==='id'?'id-ID':'en-GB',{day:'numeric',month:'short',year:'numeric'}).format(new Date(cv.updatedAt))}{cv.id===activeId&&<span className="active-cv-badge">{t.activeCv}</span>}</p></div></div><div className="saved-cv-actions"><button className="button button-secondary" onClick={()=>{onSelect(cv.id);onOpenChange(false);}}>{t.openCv}</button><button className="icon-button" aria-label={`${t.renameCv}: ${cvLabel(cv,ui,i)}`} title={t.renameCv} onClick={()=>startRename(cv,i)}><Pencil size={16}/></button><button className="icon-button remove-entry" aria-label={`${t.deleteCv}: ${cvLabel(cv,ui,i)}`} title={t.deleteCv} onClick={()=>setDeleting(cv.id)}><Trash2 size={16}/></button></div></article>)}</div>
+  <Dialog open={rename!==null} onOpenChange={v=>{if(!v)setRename(null);}}><DialogContent showCloseButton={false}><DialogTitle>{t.renameTitle}</DialogTitle><DialogDescription>{t.renameHint}</DialogDescription><form onSubmit={submitRename}><div className="field"><label htmlFor="cv-name">{t.cvName}</label><input id="cv-name" autoFocus maxLength={200} value={name} onChange={e=>{setName(e.target.value);setInvalid(false);}} aria-invalid={invalid} aria-describedby={invalid?'cv-name-error':undefined}/>{invalid&&<p className="field-error" id="cv-name-error">{t.cvNameError}</p>}</div><div className="cv-dialog-actions"><button type="button" className="button button-secondary" onClick={()=>setRename(null)}>{copy[ui].cancel}</button><button className="button button-primary" type="submit">{t.confirmRename}</button></div></form></DialogContent></Dialog>
+  <AlertDialog open={deleting!==null} onOpenChange={v=>{if(!v)setDeleting(null);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t.deleteTitle}</AlertDialogTitle><AlertDialogDescription>{deletingCv&&<strong className="delete-cv-name">{cvLabel(deletingCv,ui,items.findIndex(cv=>cv.id===deleting))}</strong>}{t.deleteDescription}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{copy[ui].cancel}</AlertDialogCancel><AlertDialogAction onClick={()=>{onDelete(deleting!);setDeleting(null);}}>{t.confirmDelete}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+ </DialogContent></Dialog>;
+}

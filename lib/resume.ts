@@ -1,0 +1,21 @@
+import { z } from 'zod';
+export type Locale = 'en' | 'id';
+export const sectionKeys = ['experience','education','skills','projects','certifications','languages'] as const;
+export type SectionKey = typeof sectionKeys[number];
+export type Section = 'personal' | 'summary' | SectionKey;
+const textSchema = z.object({ title:z.string().max(500), organization:z.string().max(500), location:z.string().max(500), description:z.string().max(20000) });
+export const entrySchema = z.object({id:z.string().min(1).max(100), start:z.string().regex(/^$|^\d{4}-(0[1-9]|1[0-2])$/), end:z.string().regex(/^$|^\d{4}-(0[1-9]|1[0-2])$/), current:z.boolean(), link:z.string().max(2000), text:z.object({en:textSchema,id:textSchema})});
+export type Entry = z.infer<typeof entrySchema>;
+export const draftSchema = z.object({version:z.literal(1), contact:z.object({name:z.string().max(500),email:z.string().max(500),phone:z.string().max(500),location:z.string().max(500),website:z.string().max(2000)}), title:z.object({en:z.string().max(500),id:z.string().max(500)}), summary:z.object({en:z.string().max(20000),id:z.string().max(20000)}), sections:z.object({experience:z.array(entrySchema).max(100),education:z.array(entrySchema).max(100),skills:z.array(entrySchema).max(100),projects:z.array(entrySchema).max(100),certifications:z.array(entrySchema).max(100),languages:z.array(entrySchema).max(100)})}).superRefine((d,ctx)=>{ const ids=sectionKeys.flatMap(k=>d.sections[k].map(e=>e.id)); if(new Set(ids).size!==ids.length)ctx.addIssue({code:'custom',message:'Duplicate entry IDs'}); });
+export type Draft = z.infer<typeof draftSchema>;
+export function blankDraft():Draft {return {version:1,contact:{name:'',email:'',phone:'',location:'',website:''},title:{en:'',id:''},summary:{en:'',id:''},sections:{experience:[],education:[],skills:[],projects:[],certifications:[],languages:[]}};}
+export function blankEntry():Entry {return {id:crypto.randomUUID(),start:'',end:'',current:false,link:'',text:{en:{title:'',organization:'',location:'',description:''},id:{title:'',organization:'',location:'',description:''}}};}
+export const headings:Record<Locale,Record<Section,string>>={en:{personal:'Personal details',summary:'Professional summary',experience:'Experience',education:'Education',skills:'Skills',projects:'Projects',certifications:'Certifications',languages:'Languages'},id:{personal:'Data pribadi',summary:'Ringkasan profesional',experience:'Pengalaman kerja',education:'Pendidikan',skills:'Keahlian',projects:'Proyek',certifications:'Sertifikasi',languages:'Bahasa'}};
+export function dateLabel(date:string,locale:Locale){if(!date)return ''; const [y,m]=date.split('-').map(Number);return new Intl.DateTimeFormat(locale==='id'?'id-ID':'en-GB',{month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(Date.UTC(y,m-1,1)));}
+export function dateRange(e:Entry,l:Locale){return [dateLabel(e.start,l),e.current?(l==='en'?'Present':'Saat ini'):dateLabel(e.end,l)].filter(Boolean).join(' – ');}
+export type ResumeBlock={heading:string,items:{title:string,meta:string,dates:string,lines:string[],link:string}[]};
+export function normalizeResume(d:Draft,l:Locale){return {name:d.contact.name.trim(),title:d.title[l].trim(),contact:[d.contact.location,d.contact.email,d.contact.phone,d.contact.website].map(s=>s.trim()).filter(Boolean),summary:d.summary[l].trim(),summaryHeading:headings[l].summary,blocks:(['experience','projects','education','skills','certifications','languages'] as const).map(k=>({heading:headings[l][k],items:d.sections[k].filter(e=>Object.values(e.text[l]).some(s=>s.trim())).map(e=>({title:e.text[l].title.trim(),meta:[e.text[l].organization,e.text[l].location].map(s=>s.trim()).filter(Boolean).join(' · '),dates:dateRange(e,l),lines:e.text[l].description.split('\n').map(s=>s.replace(/^\s*[-•]\s*/,'').trim()).filter(Boolean),link:e.link.trim()}))})).filter(b=>b.items.length)};}
+export type Resume = ReturnType<typeof normalizeResume>;
+export function hasContent(d:Draft,l:Locale){const n=normalizeResume(d,l);return !!(n.name||n.title||n.contact.length||n.summary||n.blocks.length);}
+export function filename(d:Draft,l:Locale,ext:string){return `${d.contact.name.trim().replace(/[^\p{L}\p{N}\s-]/gu,'').replace(/\s+/g,'-').slice(0,70)||'resume'}-${l}.${ext}`;}
+export const STORAGE_KEY='cv-studio:draft:v1';
